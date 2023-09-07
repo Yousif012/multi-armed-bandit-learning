@@ -244,7 +244,7 @@ def qLearning(H, lmax, e, clusters, M, numberOfVectors, EsN0, seed):
 
 		indexOfVector += 1
 	
-	with open("results2.txt", "wb") as fp:
+	with open("results1.txt", "wb") as fp:
 		pickle.dump(Q, fp)
 
 
@@ -312,11 +312,11 @@ H = BToHamm(B)
 #print(len(H))
 
 clusters = generateClusters(len(H), 2)
-lmax = 50
+lmax = 100
 e = 0.6
 M = 2
 numberOfVectors = 1000
-EsN0 = 0.1
+EsN0 = 0.9
 
 
 
