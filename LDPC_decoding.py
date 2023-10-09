@@ -3,6 +3,7 @@ import numpy
 from numpy import sum,isrealobj,sqrt
 from numpy.random import standard_normal
 import csv
+import pickle
 # decoder
 def bitFlippingDecoding(y, B, maxIterations=100):
 	M = y.copy()
@@ -266,5 +267,7 @@ H = [[1,1,0,1,0,0],
 
 #E = [[0]*len(H[0])]*len(H)
 #print(E)
+#with open('mat_3_6.txt', 'rb') as f:
+#    H = pickle.load(f)
 
-print(awgn([0,0,0,0,0,0], 0.3))
+print(softDecisionSimulation(H, 0.5, 0.0005)[0])
