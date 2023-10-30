@@ -1,5 +1,5 @@
 from numpy.random import random
-import numpy
+import numpy as np
 from numpy import sum,isrealobj,sqrt
 from numpy.random import standard_normal
 import csv
@@ -59,11 +59,12 @@ def bitFlippingDecoding(y, B, maxIterations=100):
 		else:
 			i += 1
 	return M
-def sumProductDecoding(r, H, maxIterations=100):
+def floodingDecoding(r, H, maxIterations=100):
 	
 	I = 0
 	M = []
 	B = hammToB(H)
+	A = getMessageToCheckEdges(H)
 
 	# initialization
 	for i in range(len(B)):
@@ -73,6 +74,8 @@ def sumProductDecoding(r, H, maxIterations=100):
 			M[i][j-1] = r[j-1]
 
 	while I < maxIterations:
+		
+		print(I)
 
 		# initialize E
 		E = []
@@ -80,25 +83,37 @@ def sumProductDecoding(r, H, maxIterations=100):
 			E.append([0]*len(r))
 
 		# get checks
+		'''
 		for i in range(len(E)):
 			for j in range(len(E[i])):
 				if M[i][j] == 0:
 					continue
+				print(i+1, j+1)
 				product = 1.0
 				for n in B[i]:
 					if n-1 != j:
-						product *= numpy.tanh(M[i][n-1] / 2)
-				if product == 1:
-					print("here!", M)
-				E[i][j] = float(numpy.log((1 + product)/(1 - product)))
-
-		
+						product *= np.tanh(M[i][n-1] / 2)
+				E[i][j] = float(np.log((1 + product)/(1 - product)))
+		'''
+  
+		for i in range(len(B)):
+			product = 1.0
+			for j in B[i]:
+				product *= np.tanh(M[i][j-1] / 2)
+			for j in B[i]:
+				newProduct = product / (np.tanh(M[i][j-1] / 2))
+				E[i][j-1] = float(np.log((1 + newProduct)/(1 - newProduct)))
+    	
 		L = r.copy()
-
+  
+		for i in range(len(B)):
+			for j in B[i]:
+				L[j-1] += E[i][j-1]
+		'''
 		for i in range(len(E)):
 			for j in range(len(E[i])):
 				L[j] += E[i][j]
-
+		'''
 
 		# converting to binary format
 		z = []
@@ -110,7 +125,7 @@ def sumProductDecoding(r, H, maxIterations=100):
 		s = []
 
 		for i in range(len(H)):
-			total = numpy.dot(H[i], z)
+			total = np.dot(H[i], z)
 			s.append(total % 2)
 		if sum(s) == 0:
 			return z
@@ -121,6 +136,7 @@ def sumProductDecoding(r, H, maxIterations=100):
 				M.append([0]*len(r))
 
 			# setting up M from E and r
+			'''
 			for i in range(len(E)):
 				for j in range(len(E[i])):
 					val = 0
@@ -135,10 +151,72 @@ def sumProductDecoding(r, H, maxIterations=100):
 							M[i][j] = -20
 						elif M[i][j] > 0 and M[i][j] > 20:
 							M[i][j] = 20
+			'''
+			for i in range(len(A)):
+				val = 0
+				for j in A[i]:
+					val += E[j-1][i]
+				for j in A[i]:
+    
+					M[j-1][i] = val + r[i] - E[j-1][i]
+     
+					if M[j-1][i] < -20: M[j-1][i] = -20
+					elif M[j-1][i] > 20: M[j-1][i] = 20
 
 		I += 1
 
 	return z
+def sequentialDecoding(y, H, maxIterations = 100):
+
+    edges = hammToB(H)
+    M = [[0 for i in range(len(H[0]))] for j in range(len(H))]
+    initBitToCheck(y, M)
+    E = [[0 for i in range(len(H[0]))] for j in range(len(H))]
+
+
+    for _ in range(maxIterations):
+                    
+        checkNode = int(len(H)*random())
+        propogateMessage(E, M, checkNode, edges)
+            
+        L = y.copy()
+        for i in range(len(E)):
+            for j in range(len(E[i])):
+                L[j] += E[i][j]
+            
+        Lbinary = []
+        for noise in L:
+            if noise >= 0:
+                Lbinary.append(0)
+            else:
+                Lbinary.append(1)
+                    
+        
+        s = []
+        for i in range(len(H)):
+            total = np.dot(H[i], Lbinary)
+            s.append(total % 2)
+            
+        sumOfBits = sum(s)
+        if(sumOfBits == 0):
+            return Lbinary
+        else:
+            M = [[0 for i in range(len(H[0]))] for j in range(len(H))]
+            for i in range(len(E)):
+                for j in range(len(E[0])):
+                    val = 0
+                    if E[i][j] != 0:
+                        for row in range(len(E)):
+                            if row != i:
+                                val += E[row][j]
+                        M[i][j] = val + L[j]
+                            
+                        if M[i][j] < -20:
+                            M[i][j] = -20
+                        elif M[i][j] > 20:
+                            M[i][j] = 20
+    
+    return Lbinary
 def BSC(y, error):
 	error = error / 100
 	flip_locs = (random(len(y)) <= error)
@@ -179,37 +257,85 @@ def hardDecisionSimulation(B, error, lengthOfCode, maxBlockErros = 100):
 		i += 1
 
 	return [bitErrors/i, blockErrors/i]
-def softDecisionSimulation(H, r, EbN0dB, maxBlockErros = 100, maxIterations = 200, seed = 0):
+# sequential decoding simulation 
+def softDecisionSequentialSimulation(H, r, EbN0dB, maxBlockErros = 100, maxSamples = 10000, seed = 0):
 
 	EbN0 = pow(10, EbN0dB / 10)
 	EsN0 = EbN0 * r
-	EsN0dB = 10*numpy.log(EsN0)
 
 	lengthOfCode = len(H[0])
 	x = [0]*lengthOfCode
 	bitErrors = 0
 	blockErrors = 0
-	I = 0
+	sample_index = 0
 
-	numpy.random.seed(seed)
+	np.random.seed(seed)
 
-	while blockErrors < maxBlockErros and I < maxIterations:
+	while blockErrors < maxBlockErros and sample_index < maxSamples:
 
 		# pass through AWGN
 
 		y = list(awgn([1]*lengthOfCode, EsN0))
 
 		# decode for errors
-		decodedY = sumProductDecoding(y, H)
+		decodedY = sequentialDecoding(y, H)
 
 		# count number of errors the decoder missed
 		errors = errorCounter(x, decodedY)
 
 		blockErrors += errors[1]
 		bitErrors += errors[0]
-		I += 1
+		sample_index += 1
 
-	return [bitErrors/I, blockErrors/I]
+	return [bitErrors/(sample_index*lengthOfCode), blockErrors/sample_index]
+# flooding decoding simulation
+# H is the code matrix
+# r is code rate
+# returns [bitErrorRate, blockErrorRate]
+def softDecisionFloodingSimulation(H, r, EbN0dB, maxBlockErros = 100, maxSamples = 10000, seed = 0):
+
+	EbN0 = pow(10, EbN0dB / 10)
+	EsN0 = EbN0 * r
+
+	lengthOfCode = len(H[0])
+	x = [0]*lengthOfCode
+	bitErrors = 0
+	blockErrors = 0
+	sample_index = 0
+
+	np.random.seed(seed)
+
+	while blockErrors < maxBlockErros and sample_index < maxSamples:
+
+		# pass through AWGN
+		y = list(awgn([1]*lengthOfCode, EsN0))
+		r = [0]*len(y)
+  
+		for i in range(len(r)):
+			r[i] = 4*y[i]*EsN0
+
+		# decode for errors
+		decodedY = floodingDecoding(r, H)
+
+		# count number of errors the decoder missed
+		errors = errorCounter(x, decodedY)
+
+		blockErrors += errors[1]
+		bitErrors += errors[0]
+		sample_index += 1
+
+	return [bitErrors/(sample_index*lengthOfCode), blockErrors/sample_index]
+def propogateMessage(E, M, checkNodeIndex, tannerGraphEdges):
+
+	edges = tannerGraphEdges[checkNodeIndex]
+	
+
+	for edge in edges:
+		product = 1
+		for otherEdge in edges:
+			if otherEdge != edge:
+				product *= np.tanh(M[checkNodeIndex][otherEdge - 1] / 2)
+		E[checkNodeIndex][edge - 1] = round(float(np.log((1 + product)/(1 - product))), 3)
 def hammToB(hamm):
 	B = []
 	for r in hamm:
@@ -247,7 +373,7 @@ def awgn(data, EsN0):
 	variance = 1 / (2 * EsN0)
 	dataLength = len(data)
 
-	noise = numpy.random.normal(0, variance, dataLength)
+	noise = np.random.normal(0, variance, dataLength)
 
 	for i in range(len(data)):
 		data[i] += noise[i]
@@ -256,18 +382,31 @@ def awgn(data, EsN0):
 def printMatrix(matrix):
 	for row in matrix:
 		print(row)
+def initBitToCheck(L, bitToCheck):
+	for i in range(len(bitToCheck)):
+		bitToCheck[i] = L[:]
+def getMessageToCheckEdges(H):
+	A = [[] for _ in range(len(H[0]))]
+	for i in range(len(H)):
+		for j in range(len(H[0])):
+			if H[i][j] != 0:
+				A[j].append(i+1)
+	return A
 
+with open('mat_3_6.txt', 'rb') as f:
+    H = pickle.load(f)
+np.random.seed(1)
+lengthOfCode = len(H[0])
+EsN0 = 0.8
+y = list(awgn([1]*lengthOfCode, EsN0))
+r = [0]*len(y)
+  
+for i in range(len(r)):
+	r[i] = 4*y[i]*EsN0
 
-H = [[1,1,0,1,0,0],
-	 [0,1,1,0,1,0],
-	 [1,0,0,0,1,1],
-	 [0,0,1,1,0,1]]
+res = floodingDecoding(r, H)
 
-#print(hammToB(H))
+errors = errorCounter([0]*len(H[0]), res)
 
-#E = [[0]*len(H[0])]*len(H)
-#print(E)
-#with open('mat_3_6.txt', 'rb') as f:
-#    H = pickle.load(f)
+print(errors)
 
-print(softDecisionSimulation(H, 0.5, 0.0005)[0])
