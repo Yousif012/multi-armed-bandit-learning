@@ -74,8 +74,6 @@ def floodingDecoding(r, H, maxIterations=100):
 			M[i][j-1] = r[j-1]
 
 	while I < maxIterations:
-		
-		print(I)
 
 		# initialize E
 		E = []
@@ -83,19 +81,6 @@ def floodingDecoding(r, H, maxIterations=100):
 			E.append([0]*len(r))
 
 		# get checks
-		'''
-		for i in range(len(E)):
-			for j in range(len(E[i])):
-				if M[i][j] == 0:
-					continue
-				print(i+1, j+1)
-				product = 1.0
-				for n in B[i]:
-					if n-1 != j:
-						product *= np.tanh(M[i][n-1] / 2)
-				E[i][j] = float(np.log((1 + product)/(1 - product)))
-		'''
-  
 		for i in range(len(B)):
 			product = 1.0
 			for j in B[i]:
@@ -109,11 +94,6 @@ def floodingDecoding(r, H, maxIterations=100):
 		for i in range(len(B)):
 			for j in B[i]:
 				L[j-1] += E[i][j-1]
-		'''
-		for i in range(len(E)):
-			for j in range(len(E[i])):
-				L[j] += E[i][j]
-		'''
 
 		# converting to binary format
 		z = []
@@ -135,23 +115,7 @@ def floodingDecoding(r, H, maxIterations=100):
 			for i in range(len(E)):
 				M.append([0]*len(r))
 
-			# setting up M from E and r
-			'''
-			for i in range(len(E)):
-				for j in range(len(E[i])):
-					val = 0
-					if E[i][j] != 0:
-						for row in range(len(E)):
-							if row != i:
-								val += E[row][j]
-						M[i][j] = val + r[j]
-
-						# limit bit to check values
-						if M[i][j] < 0 and M[i][j] < -20:
-							M[i][j] = -20
-						elif M[i][j] > 0 and M[i][j] > 20:
-							M[i][j] = 20
-			'''
+			# resetting up M
 			for i in range(len(A)):
 				val = 0
 				for j in A[i]:
@@ -166,57 +130,58 @@ def floodingDecoding(r, H, maxIterations=100):
 		I += 1
 
 	return z
-def sequentialDecoding(y, H, maxIterations = 100):
+def sequentialDecoding(r, H, maxIterations = 100):
+    
 
-    edges = hammToB(H)
+    A = getMessageToCheckEdges(H)
+    B = hammToB(H)
+
+    # initialize bit node to check node messages
     M = [[0 for i in range(len(H[0]))] for j in range(len(H))]
-    initBitToCheck(y, M)
-    E = [[0 for i in range(len(H[0]))] for j in range(len(H))]
-
-
+    for i in range(len(B)):
+        for j in B[i]:
+            M[i][j-1] = r[j-1]
+    
     for _ in range(maxIterations):
+        
+        # initialize check node to bit node messages
+        E = [[0 for i in range(len(H[0]))] for j in range(len(H))]
                     
         checkNode = int(len(H)*random())
-        propogateMessage(E, M, checkNode, edges)
+        propogateMessage(E, M, checkNode, B)
             
-        L = y.copy()
-        for i in range(len(E)):
-            for j in range(len(E[i])):
-                L[j] += E[i][j]
+        L = r.copy()
+        
+        for i in range(len(B)):
+            for j in B[i]:
+                L[j-1] += E[i][j-1]
             
-        Lbinary = []
+        z = []
         for noise in L:
             if noise >= 0:
-                Lbinary.append(0)
+                z.append(0)
             else:
-                Lbinary.append(1)
+                z.append(1)
                     
-        
         s = []
         for i in range(len(H)):
-            total = np.dot(H[i], Lbinary)
+            total = np.dot(H[i], z)
             s.append(total % 2)
             
-        sumOfBits = sum(s)
-        if(sumOfBits == 0):
-            return Lbinary
+        if(sum(s) == 0):
+            return z
         else:
-            M = [[0 for i in range(len(H[0]))] for j in range(len(H))]
-            for i in range(len(E)):
-                for j in range(len(E[0])):
-                    val = 0
-                    if E[i][j] != 0:
-                        for row in range(len(E)):
-                            if row != i:
-                                val += E[row][j]
-                        M[i][j] = val + L[j]
-                            
-                        if M[i][j] < -20:
-                            M[i][j] = -20
-                        elif M[i][j] > 20:
-                            M[i][j] = 20
+            # this part:
+            affectedBitNodes = B[checkNode]
+            for affectedBitNode in affectedBitNodes:
+                val = E[checkNode][affectedBitNode-1]
+                for affectedCheckNode in A[affectedBitNode-1]:
+                    M[affectedCheckNode-1][affectedBitNode-1] = val
+            print(checkNode)
+            printMatrix(M)
+            print('\n')            
     
-    return Lbinary
+    return z
 def BSC(y, error):
 	error = error / 100
 	flip_locs = (random(len(y)) <= error)
@@ -325,17 +290,17 @@ def softDecisionFloodingSimulation(H, r, EbN0dB, maxBlockErros = 100, maxSamples
 		sample_index += 1
 
 	return [bitErrors/(sample_index*lengthOfCode), blockErrors/sample_index]
-def propogateMessage(E, M, checkNodeIndex, tannerGraphEdges):
+def propogateMessage(E, M, checkNode, B):
 
-	edges = tannerGraphEdges[checkNodeIndex]
-	
-
-	for edge in edges:
-		product = 1
-		for otherEdge in edges:
-			if otherEdge != edge:
-				product *= np.tanh(M[checkNodeIndex][otherEdge - 1] / 2)
-		E[checkNodeIndex][edge - 1] = round(float(np.log((1 + product)/(1 - product))), 3)
+	variableNodes = B[checkNode]
+ 
+	product = 1
+	for j in variableNodes:
+		product *= np.tanh(M[checkNode][j-1] / 2)
+	for j in variableNodes:
+		newProduct = product / (np.tanh(M[checkNode][j-1] / 2))
+		E[checkNode][j-1] = float(np.log((1 + newProduct)/(1 - newProduct)))
+  
 def hammToB(hamm):
 	B = []
 	for r in hamm:
@@ -393,6 +358,7 @@ def getMessageToCheckEdges(H):
 				A[j].append(i+1)
 	return A
 
+'''
 with open('mat_3_6.txt', 'rb') as f:
     H = pickle.load(f)
 np.random.seed(1)
@@ -410,3 +376,20 @@ errors = errorCounter([0]*len(H[0]), res)
 
 print(errors)
 
+'''
+B = [[1,2,4], [2,3,5], [1,5,6], [3,4,6]]
+H = BToHamm(B)
+np.random.seed(1)
+lengthOfCode = len(H[0])
+EsN0 = 0.8
+y = list(awgn([1]*lengthOfCode, EsN0))
+r = [0]*len(y)
+  
+for i in range(len(r)):
+	r[i] = 4*y[i]*EsN0
+
+res = sequentialDecoding(r, H)
+
+print(res)
+
+# still need to check this part in the sequential decoding function
