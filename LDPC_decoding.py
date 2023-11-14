@@ -4,6 +4,7 @@ from numpy import sum,isrealobj,sqrt
 from numpy.random import standard_normal
 import csv
 import pickle
+import random as rnd
 # decoder
 def bitFlippingDecoding(y, B, maxIterations=100):
 	M = y.copy()
@@ -110,11 +111,6 @@ def floodingDecoding(r, H, maxIterations=100):
 		if sum(s) == 0:
 			return z
 		else:
-			# initializing M
-			M = []
-			for i in range(len(E)):
-				M.append([0]*len(r))
-
 			# resetting up M
 			for i in range(len(A)):
 				val = 0
@@ -144,11 +140,18 @@ def sequentialDecoding(r, H, maxIterations = 100):
     
     for _ in range(maxIterations):
         
+        checkSequence = rnd.sample(range(len(H)), len(H))
+        
         # initialize check node to bit node messages
         E = [[0 for i in range(len(H[0]))] for j in range(len(H))]
-                    
-        checkNode = int(len(H)*random())
-        propogateMessage(E, M, checkNode, B)
+        
+        for checkNode in checkSequence:
+         propogateMessage(E, M, checkNode, B)
+         affectedBitNodes = B[checkNode]
+         for affectedBitNode in affectedBitNodes:
+             val = E[checkNode][affectedBitNode-1]
+             for affectedCheckNode in A[affectedBitNode-1]:
+                 M[affectedCheckNode-1][affectedBitNode-1] = val 
             
         L = r.copy()
         
@@ -169,17 +172,7 @@ def sequentialDecoding(r, H, maxIterations = 100):
             s.append(total % 2)
             
         if(sum(s) == 0):
-            return z
-        else:
-            # this part:
-            affectedBitNodes = B[checkNode]
-            for affectedBitNode in affectedBitNodes:
-                val = E[checkNode][affectedBitNode-1]
-                for affectedCheckNode in A[affectedBitNode-1]:
-                    M[affectedCheckNode-1][affectedBitNode-1] = val
-            print(checkNode)
-            printMatrix(M)
-            print('\n')            
+            return z    
     
     return z
 def BSC(y, error):
@@ -299,7 +292,13 @@ def propogateMessage(E, M, checkNode, B):
 		product *= np.tanh(M[checkNode][j-1] / 2)
 	for j in variableNodes:
 		newProduct = product / (np.tanh(M[checkNode][j-1] / 2))
-		E[checkNode][j-1] = float(np.log((1 + newProduct)/(1 - newProduct)))
+  
+		val = float(np.log((1 + newProduct)/(1 - newProduct)))
+  
+		if abs(val) < pow(10, -8) or val == None:
+			val = 0
+   
+		E[checkNode][j-1] = val
   
 def hammToB(hamm):
 	B = []
@@ -376,7 +375,7 @@ errors = errorCounter([0]*len(H[0]), res)
 
 print(errors)
 
-'''
+
 B = [[1,2,4], [2,3,5], [1,5,6], [3,4,6]]
 H = BToHamm(B)
 np.random.seed(1)
@@ -391,5 +390,7 @@ for i in range(len(r)):
 res = sequentialDecoding(r, H)
 
 print(res)
+
+'''
 
 # still need to check this part in the sequential decoding function
