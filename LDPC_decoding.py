@@ -271,10 +271,10 @@ def softDecisionSequentialSimulation(H, r, EbN0dB, maxBlockErros=100, maxSamples
 # returns [bitErrorRate, blockErrorRate]
 
 
-def softDecisionFloodingSimulation(H, r, EbN0dB, maxBlockErros=100, maxSamples=10000, seed=0):
+def softDecisionFloodingSimulation(H, rate, EbN0dB, maxBlockErros=100, maxSamples=10000, seed=0):
 
     EbN0 = pow(10, EbN0dB / 10)
-    EsN0 = EbN0 * r
+    EsN0 = EbN0 * rate
 
     lengthOfCode = len(H[0])
     x = [0]*lengthOfCode
@@ -367,7 +367,7 @@ def awgn(data, EsN0):
     variance = 1 / (2 * EsN0)
     dataLength = len(data)
 
-    noise = np.random.normal(0, variance, dataLength)
+    noise = list(np.random.normal(0, np.sqrt(variance), dataLength))
 
     for i in range(len(data)):
         data[i] += noise[i]
@@ -413,21 +413,13 @@ res = floodingDecoding(r, H)
 errors = errorCounter([0]*len(H[0]), res)
 
 print(errors)
-
+'''
 
 B = [[1,2,4], [2,3,5], [1,5,6], [3,4,6]]
 H = BToHamm(B)
-np.random.seed(1)
-lengthOfCode = len(H[0])
-EsN0 = 0.8
-y = list(awgn([1]*lengthOfCode, EsN0))
-r = [0]*len(y)
-  
-for i in range(len(r)):
-	r[i] = 4*y[i]*EsN0
 
-res = sequentialDecoding(r, H)
+res = softDecisionFloodingSimulation(H, 0.5, 5, seed=1)
 
 print(res)
 
-'''
+
