@@ -5,6 +5,7 @@ from numpy.random import standard_normal
 import csv
 import pickle
 import random as rnd
+import time
 # decoder
 
 
@@ -64,22 +65,20 @@ def bitFlippingDecoding(y, B, maxIterations=100):
     return M
 
 
-def floodingDecoding(r, H, maxIterations=100):
-
+def floodingDecoding(r, H, A, B, maxIterations=100):
+    
     I = 0
     M = []
-    B = hammToB(H)
-    A = getMessageToCheckEdges(H)
 
     # initialization
     for i in range(len(B)):
         M.append([0]*len(r))
     for i in range(len(B)):
         for j in B[i]:
-            M[i][j-1] = r[j-1]
+            M[i][j-1] = r[j-1]   
 
     while I < maxIterations:
-
+      
         # initialize E
         E = []
         for i in range(len(B)):
@@ -109,11 +108,14 @@ def floodingDecoding(r, H, maxIterations=100):
                 z.append(1)
         s = []
 
-        for i in range(len(H)):
-            total = np.dot(H[i], z)
+        for i in range(len(B)):
+            total = 0
+            for j in B[i]:
+                total += (z[j-1])
             s.append(total % 2)
+
         if sum(s) == 0:
-            return z
+            break
         else:
             # resetting up M
             for i in range(len(A)):
@@ -134,31 +136,29 @@ def floodingDecoding(r, H, maxIterations=100):
     return z
 
 
-def sequentialDecoding(r, H, maxIterations=100):
-
-    A = getMessageToCheckEdges(H)
-    B = hammToB(H)
+def sequentialDecoding(r, H, A, B, maxIterations=100):
 
     # initialize bit node to check node messages
-    M = [[0 for i in range(len(H[0]))] for j in range(len(H))]
+    M = []
+
+    # initialization
+    for i in range(len(B)):
+        M.append([0]*len(r))
     for i in range(len(B)):
         for j in B[i]:
-            M[i][j-1] = r[j-1]
+            M[i][j-1] = r[j-1]   
 
     for _ in range(maxIterations):
 
         checkSequence = rnd.sample(range(len(H)), len(H))
 
-        # initialize check node to bit node messages
-        E = [[0 for i in range(len(H[0]))] for j in range(len(H))]
+        # initialize E
+        E = []
+        for i in range(len(B)):
+            E.append([0]*len(r))
 
         for checkNode in checkSequence:
             propogateMessage(E, M, checkNode, B)
-            affectedBitNodes = B[checkNode]
-            for affectedBitNode in affectedBitNodes:
-                val = E[checkNode][affectedBitNode-1]
-                for affectedCheckNode in A[affectedBitNode-1]:
-                    M[affectedCheckNode-1][affectedBitNode-1] = val
 
         L = r.copy()
 
@@ -166,22 +166,37 @@ def sequentialDecoding(r, H, maxIterations=100):
             for j in B[i]:
                 L[j-1] += E[i][j-1]
 
+        # converting to binary format
         z = []
-
-        for noise in L:
-            if noise >= 0:
+        for bit in L:
+            if bit > 0:
                 z.append(0)
             else:
                 z.append(1)
-
         s = []
-        print(E)
-        for i in range(len(H)):
-            total = np.dot(H[i], z)
+        
+        for i in range(len(B)):
+            total = 0
+            for j in B[i]:
+                total += (z[j-1])
             s.append(total % 2)
 
         if(sum(s) == 0):
             return z
+        else:
+            # resetting up M
+            for i in range(len(A)):
+                val = 0
+                for j in A[i]:
+                    val += E[j-1][i]
+                for j in A[i]:
+
+                    M[j-1][i] = val + r[i] - E[j-1][i]
+
+                    if M[j-1][i] < -20:
+                        M[j-1][i] = -20
+                    elif M[j-1][i] > 20:
+                        M[j-1][i] = 20
 
     return z
 
@@ -233,7 +248,7 @@ def hardDecisionSimulation(B, error, lengthOfCode, maxBlockErros=100):
 # sequential decoding simulation
 
 
-def softDecisionSequentialSimulation(H, r, EbN0dB, maxBlockErros=100, maxSamples=10000, seed=0):
+def softDecisionSequentialSimulation(H, r, EbN0dB, maxBlockErros=10, maxSamples=10000, seed=0):
 
     EbN0 = pow(10, EbN0dB / 10)
     EsN0 = EbN0 * r
@@ -244,18 +259,22 @@ def softDecisionSequentialSimulation(H, r, EbN0dB, maxBlockErros=100, maxSamples
     blockErrors = 0
     sample_index = 0
 
-    np.random.seed(seed)
+    A = getMessageToCheckEdges(H)
+    B = hammToB(H)
 
-    print(EbN0dB)
+    np.random.seed(seed)
 
     while blockErrors < maxBlockErros and sample_index < maxSamples:
 
         # pass through AWGN
-
         y = list(awgn([1]*lengthOfCode, EsN0))
+        r = [0]*len(y)
+
+        for i in range(len(r)):
+            r[i] = 4*y[i]*EsN0
 
         # decode for errors
-        decodedY = sequentialDecoding(y, H)
+        decodedY = sequentialDecoding(r, H, A, B)
 
         # count number of errors the decoder missed
         errors = errorCounter(x, decodedY)
@@ -271,7 +290,7 @@ def softDecisionSequentialSimulation(H, r, EbN0dB, maxBlockErros=100, maxSamples
 # returns [bitErrorRate, blockErrorRate]
 
 
-def softDecisionFloodingSimulation(H, rate, EbN0dB, maxBlockErros=100, maxSamples=10000, seed=0):
+def softDecisionFloodingSimulation(H, rate, EbN0dB, maxBlockErros=10, maxSamples=10000, seed=0):
 
     EbN0 = pow(10, EbN0dB / 10)
     EsN0 = EbN0 * rate
@@ -281,6 +300,9 @@ def softDecisionFloodingSimulation(H, rate, EbN0dB, maxBlockErros=100, maxSample
     bitErrors = 0
     blockErrors = 0
     sample_index = 0
+
+    B = hammToB(H)
+    A = getMessageToCheckEdges(H)
 
     np.random.seed(seed)
 
@@ -294,7 +316,7 @@ def softDecisionFloodingSimulation(H, rate, EbN0dB, maxBlockErros=100, maxSample
             r[i] = 4*y[i]*EsN0
 
         # decode for errors
-        decodedY = floodingDecoding(r, H)
+        decodedY = floodingDecoding(r, H, A, B)
 
         # count number of errors the decoder missed
         errors = errorCounter(x, decodedY)
@@ -307,21 +329,13 @@ def softDecisionFloodingSimulation(H, rate, EbN0dB, maxBlockErros=100, maxSample
 
 
 def propogateMessage(E, M, checkNode, B):
-
-    variableNodes = B[checkNode]
-
-    product = 1
-    for j in variableNodes:
+    
+    product = 1.0
+    for j in B[checkNode]:
         product *= np.tanh(M[checkNode][j-1] / 2)
-    for j in variableNodes:
+    for j in B[checkNode]:
         newProduct = product / (np.tanh(M[checkNode][j-1] / 2))
-
-        val = float(np.log((1 + newProduct)/(1 - newProduct)))
-
-        if abs(val) < pow(10, -8) or val == None:
-            val = 0
-
-        E[checkNode][j-1] = val
+        E[checkNode][j-1] = float(np.log((1 + newProduct)/(1 - newProduct)))
 
 
 def hammToB(hamm):
@@ -413,13 +427,15 @@ res = floodingDecoding(r, H)
 errors = errorCounter([0]*len(H[0]), res)
 
 print(errors)
+
+
+
+with open('mat_3_6.txt', 'rb') as f:
+    H = pickle.load(f)
+
+# Generate data
+EbN0dB = 0
+
+error = softDecisionFloodingSimulation(H, 0.5, EbN0dB, 1, 1)
+
 '''
-
-B = [[1,2,4], [2,3,5], [1,5,6], [3,4,6]]
-H = BToHamm(B)
-
-res = softDecisionFloodingSimulation(H, 0.5, 5, seed=1)
-
-print(res)
-
-
