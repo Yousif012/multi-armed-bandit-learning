@@ -136,17 +136,17 @@ def floodingDecoding(r, H, A, B, maxIterations=100):
     return z
 
 
-def sequentialDecoding(r, H, A, B, maxIterations=100):
+def sequentialDecoding(L, H, A, B, maxIterations=100):                      
 
     # initialize bit node to check node messages
     M = []
 
     # initialization
     for i in range(len(B)):
-        M.append([0]*len(r))
+        M.append([0]*len(L))
     for i in range(len(B)):
         for j in B[i]:
-            M[i][j-1] = r[j-1]   
+            M[i][j-1] = L[j-1]   
 
     for _ in range(maxIterations):
 
@@ -155,26 +155,26 @@ def sequentialDecoding(r, H, A, B, maxIterations=100):
         # initialize E
         E = []
         for i in range(len(B)):
-            E.append([0]*len(r))
+            E.append([0]*len(L))
 
         for checkNode in checkSequence:
             propogateMessage(E, M, checkNode, B)
 
-        L = r.copy()
+        L_cp = L.copy()
 
         for i in range(len(B)):
             for j in B[i]:
-                L[j-1] += E[i][j-1]
+                L_cp[j-1] += E[i][j-1]
 
         # converting to binary format
         z = []
-        for bit in L:
+        for bit in L_cp:
             if bit > 0:
                 z.append(0)
             else:
                 z.append(1)
         s = []
-        
+
         for i in range(len(B)):
             total = 0
             for j in B[i]:
@@ -191,7 +191,7 @@ def sequentialDecoding(r, H, A, B, maxIterations=100):
                     val += E[j-1][i]
                 for j in A[i]:
 
-                    M[j-1][i] = val + r[i] - E[j-1][i]
+                    M[j-1][i] = val + L[i] - E[j-1][i]
 
                     if M[j-1][i] < -20:
                         M[j-1][i] = -20
@@ -273,8 +273,10 @@ def softDecisionSequentialSimulation(H, r, EbN0dB, maxBlockErros=10, maxSamples=
         for i in range(len(r)):
             r[i] = 4*y[i]*EsN0
 
+        L = r
+
         # decode for errors
-        decodedY = sequentialDecoding(r, H, A, B)
+        decodedY = sequentialDecoding(L, H, A, B)
 
         # count number of errors the decoder missed
         errors = errorCounter(x, decodedY)
