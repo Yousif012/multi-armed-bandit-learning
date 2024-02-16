@@ -166,7 +166,7 @@ def qLearning(H, lmax, e, clusters, M, numberOfVectors, EsN0, seed, name):
 		l=0
 
 		# S = HL
-		S = list(np.matmul(H, L))
+		S = matrix_vector_multiplicationV2(B, L)
 
 		# Quantization ##
 		S_hat = quant(S, thre, repre)
@@ -279,6 +279,32 @@ def generateClusters(numberOfActions, numberOfClusters):
 	
 	return clusters
 
+def matrix_vector_multiplication(matrix, vector):
+    # Check if dimensions match for multiplication
+    if len(matrix[0]) != len(vector):
+        raise ValueError("Matrix columns must match vector length for multiplication.")
+    
+    # Initialize result vector with appropriate dimensions
+    result = [0] * len(matrix)
+
+    # Perform matrix-vector multiplication
+    for i in range(len(matrix)):
+        for j in range(len(vector)):
+            result[i] += matrix[i][j] * vector[j]
+
+    return result
+
+def matrix_vector_multiplicationV2(B, vector):
+    
+    # Initialize result vector with appropriate dimensions
+    result = [0] * len(B)
+
+    # Perform matrix-vector multiplication
+    for i in range(len(B)):
+        for j in B[i]:
+            result[i] += vector[j-1]
+
+    return result
 
 
 '''

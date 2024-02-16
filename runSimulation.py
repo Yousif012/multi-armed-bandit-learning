@@ -26,7 +26,7 @@ M = 2
 lmax = 100
 e = 0.6
 M = 2
-numberOfVectors = 1000
+numberOfVectors = 10000
 EsN0 = 0.5
 
 today = date.today()
