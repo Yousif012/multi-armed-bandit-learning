@@ -38,7 +38,7 @@ qLearning(H, lmax, e, clusters, M, numberOfVectors, EsN0, 0, name)
 
 # Apply Q Learning
 
-with open(name, 'rb') as f:
+with open("test-02-24.txt", 'rb') as f:
     Q = pickle.load(f)
 	
 

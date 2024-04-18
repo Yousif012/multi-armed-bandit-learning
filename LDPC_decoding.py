@@ -158,7 +158,7 @@ def sequentialDecoding(L, H, A, B, maxIterations=100):
             E.append([0]*len(L))
 
         for checkNode in checkSequence:
-            propogateMessage(E, M, checkNode, B)
+            propogateMessage(E, M, checkNode, L, A, B)
 
         L_cp = L.copy()
 
@@ -190,7 +190,6 @@ def sequentialDecoding(L, H, A, B, maxIterations=100):
                 for j in A[i]:
                     val += E[j-1][i]
                 for j in A[i]:
-
                     M[j-1][i] = val + L[i] - E[j-1][i]
 
                     if M[j-1][i] < -20:
@@ -281,9 +280,13 @@ def softDecisionSequentialSimulation(H, r, EbN0dB, maxBlockErros=10, maxSamples=
         # count number of errors the decoder missed
         errors = errorCounter(x, decodedY)
 
+        print(f"Vector {sample_index}, {errors[0]/lengthOfCode}")
+
         blockErrors += errors[1]
         bitErrors += errors[0]
         sample_index += 1
+	    
+
 
     return [bitErrors/(sample_index*lengthOfCode), blockErrors/sample_index]
 # flooding decoding simulation
@@ -323,6 +326,8 @@ def softDecisionFloodingSimulation(H, rate, EbN0dB, maxBlockErros=10, maxSamples
         # count number of errors the decoder missed
         errors = errorCounter(x, decodedY)
 
+        print(f"Vector {sample_index}, {errors[0]/lengthOfCode}")
+
         blockErrors += errors[1]
         bitErrors += errors[0]
         sample_index += 1
@@ -330,14 +335,30 @@ def softDecisionFloodingSimulation(H, rate, EbN0dB, maxBlockErros=10, maxSamples
     return [bitErrors/(sample_index*lengthOfCode), blockErrors/sample_index]
 
 
-def propogateMessage(E, M, checkNode, B):
+def propogateMessage(E, M, checkNode, L, A, B):
+    
+    visitedVariableNodes = set()
     
     product = 1.0
     for j in B[checkNode]:
         product *= np.tanh(M[checkNode][j-1] / 2)
+        visitedVariableNodes.add(j-1)
     for j in B[checkNode]:
         newProduct = product / (np.tanh(M[checkNode][j-1] / 2))
         E[checkNode][j-1] = float(np.log((1 + newProduct)/(1 - newProduct)))
+
+    for i in visitedVariableNodes:
+        val = 0
+        for j in A[i]:
+            val += E[j-1][i]
+        for j in A[i]:
+            M[j-1][i] = val + L[i] - E[j-1][i]
+
+            if M[j-1][i] < -20:
+                M[j-1][i] = -20
+            elif M[j-1][i] > 20:
+                M[j-1][i] = 20
+    
 
 
 def hammToB(hamm):
@@ -411,33 +432,22 @@ def getMessageToCheckEdges(H):
 
 
 ## ignore this part
-
 '''
-with open('mat_3_6.txt', 'rb') as f:
-    H = pickle.load(f)
-np.random.seed(1)
-lengthOfCode = len(H[0])
-EsN0 = 0.8
-y = list(awgn([1]*lengthOfCode, EsN0))
-r = [0]*len(y)
-  
-for i in range(len(r)):
-	r[i] = 4*y[i]*EsN0
-
-res = floodingDecoding(r, H)
-
-errors = errorCounter([0]*len(H[0]), res)
-
-print(errors)
-
-
 
 with open('mat_3_6.txt', 'rb') as f:
     H = pickle.load(f)
 
-# Generate data
-EbN0dB = 0
+r = 0.5
+EsN0 = 0.72
 
-error = softDecisionFloodingSimulation(H, 0.5, EbN0dB, 1, 1)
+EbN0 = EsN0/r
+EbN0dB = 10 * np.log10(EbN0)
+
+res = softDecisionSequentialSimulation(H, 0.5, EbN0dB, 1000, 100, 5)
+
+#print(res)
+
+
+#error = softDecisionFloodingSimulation(H, 0.5, EbN0dB, 1000, 100, 5)
 
 '''
