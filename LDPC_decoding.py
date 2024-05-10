@@ -431,23 +431,34 @@ def getMessageToCheckEdges(H):
     return A
 
 
-## ignore this part
+# uncomment to run simulation
 '''
 
 with open('mat_3_6.txt', 'rb') as f:
     H = pickle.load(f)
 
-r = 0.5
-EsN0 = 0.72
-
-EbN0 = EsN0/r
-EbN0dB = 10 * np.log10(EbN0)
-
-res = softDecisionSequentialSimulation(H, 0.5, EbN0dB, 1000, 100, 5)
-
-#print(res)
+sequentialResults = {}
+floodingResults = {}
 
 
-#error = softDecisionFloodingSimulation(H, 0.5, EbN0dB, 1000, 100, 5)
+for EsN0 in [0.7,0.79]:
+    r = 0.5
+
+    EbN0 = EsN0/r
+    EbN0dB = 10 * np.log10(EbN0)
+
+    res1 = softDecisionSequentialSimulation(H, 0.5, EbN0dB, 10, 10000, 5)
+    res2 = softDecisionFloodingSimulation(H, 0.5, EbN0dB, 10, 10000, 5)
+
+
+    sequentialResults[EsN0] = res1[0]
+    floodingResults[EsN0] = res2[0]
+
+with open("sequential_result_1.txt", "wb") as fp:
+	pickle.dump(sequentialResults, fp)
+
+with open("flooding_result_1.txt", "wb") as fp:
+	pickle.dump(floodingResults, fp)
+
 
 '''
